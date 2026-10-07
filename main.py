@@ -20,8 +20,10 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 for d in ["data/raw", "data/cleaned", "logs", "static"]:
     Path(d).mkdir(parents=True, exist_ok=True)
 
+# static folder holds the dashboard page
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+# keeps uploaded sessions in memory so we do not hit the db every request
 SESSIONS: dict = {}
 MAX_MB = 100
 
@@ -32,6 +34,7 @@ def on_startup():
 
 
 def get_session(session_id: str) -> dict:
+    # check memory first, then fall back to the database
     if session_id in SESSIONS:
         return SESSIONS[session_id]
     df = load_session_df(session_id)
@@ -48,7 +51,7 @@ def read_any_file(path: Path) -> pd.DataFrame:
         lambda: pd.read_csv(path, encoding="utf-8"),
         lambda: pd.read_csv(path, encoding="latin1"),
         lambda: pd.read_excel(path, engine="openpyxl"),
-        lambda: pd.read_excel(path, engine="xlrd"),   # handles old .xls disguised as .xlsx
+        lambda: pd.read_excel(path, engine="xlrd"),   # old .xls files sometimes come named as .xlsx
         lambda: pd.read_csv(path, sep="\t", encoding="utf-8"),
         lambda: pd.read_csv(path, sep="\t", encoding="latin1"),
     ]:
@@ -77,7 +80,7 @@ def df_records(df: pd.DataFrame, limit: int = 500) -> list[dict]:
 async def root():
     for f in [Path("static/ui.html"), Path("static/index.html")]:
         if f.exists(): return FileResponse(f)
-    return JSONResponse({"status": "running — open /docs"})
+    return JSONResponse({"status": "running, open /docs"})
 
 @app.get("/health")
 async def health():
@@ -110,7 +113,7 @@ async def upload(file: UploadFile = File(...)):
         raise HTTPException(422, f"Could not read file: {e}")
 
     if df_raw.empty:
-        raise HTTPException(422, "File is empty — no data rows found.")
+        raise HTTPException(422, "File is empty, no data rows found.")
 
     try:
         cleaner            = DataCleaner(df_raw)
@@ -207,6 +210,7 @@ async def report_endpoint(session_id: str = Query(...)):
     return get_session(session_id)["report"]
 
 
+# runs an insight function and turns its error dict into a proper http error
 def _call(fn, *args, **kwargs):
     result = fn(*args, **kwargs)
     if isinstance(result, dict) and "error" in result:

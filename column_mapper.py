@@ -259,22 +259,22 @@ class MappingResult:
 
 
 def _norm(name: str) -> str:
-    """Lowercase, strip everything except letters and digits."""
+    # lowercase and drop everything that is not a letter or digit
     return re.sub(r"[^a-z0-9]", "", name.lower())
 
 
 def _score(col_norm: str, keywords: list[str]) -> float:
-    """Return best match score 0-1 between a normalised column name and a keyword list."""
+    # best match score between 0 and 1 for a cleaned column name against a keyword list
     best = 0.0
     for kw in keywords:
         kn = _norm(kw)
         if col_norm == kn:
-            return 1.0                                  # exact match
+            return 1.0                                  # exact
         if kn in col_norm or col_norm in kn:
-            best = max(best, 0.75)                      # substring match
+            best = max(best, 0.75)                      # one contains the other
         parts = [p for p in re.split(r"[^a-z0-9]", kw.lower()) if len(p) > 2]
         if any(p in col_norm for p in parts):
-            best = max(best, 0.5)                       # word-part match
+            best = max(best, 0.5)                       # only a piece of the keyword matches
     return best
 
 
@@ -337,7 +337,7 @@ def detect_columns(df: pd.DataFrame) -> MappingResult:
             "No revenue column found and no quantity+price pair to derive it from."
         )
     if "order_date" not in mapped:
-        warnings.append("No date column found — time trends will be unavailable.")
+        warnings.append("No date column found, so time trends will not be available.")
     if "order_id" not in mapped:
         warnings.append("No order ID column detected.")
     if "customer_id" not in mapped:
@@ -352,9 +352,9 @@ def detect_columns(df: pd.DataFrame) -> MappingResult:
 def apply_mapping(df: pd.DataFrame, result: MappingResult) -> pd.DataFrame:
     rename = {orig: can for can, orig in result.mapped.items()}
     df = df.rename(columns=rename)
-    # Drop duplicate column names: when two source cols map to the same
-    # canonical name (e.g. 'discount' and 'discount_pct' both -> 'discount')
-    # pandas keeps both, which breaks every downstream df["discount"] access.
+    # if two source columns end up with the same name (say discount and discount_pct
+    # both becoming discount) pandas keeps both and df["discount"] breaks later,
+    # so keep only the first one
     df = df.loc[:, ~df.columns.duplicated(keep="first")]
 
     for col, dtype in DTYPE_HINTS.items():

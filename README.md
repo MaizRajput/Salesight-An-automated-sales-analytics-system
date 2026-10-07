@@ -1,47 +1,47 @@
 # Salesight: An Automated Sales Analytics System
 
-An end-to-end pipeline that takes messy, real-world retail data — any format, any column naming convention, any encoding — and turns it into clean data plus 30+ business insights, through a REST API.
+This project takes messy retail sales data in any format, with any column names and any encoding, and turns it into clean data plus 30+ business insights through a REST API.
 
-Built as a B.Tech Computer Science capstone project. No manual column renaming, no writing a fresh cleaning script for every new dataset — upload a file, get an analytics-ready dashboard.
+I built it as my B.Tech Computer Science capstone. The idea was to stop renaming columns by hand and stop writing a new cleaning script for every dataset. You upload a file and get a dashboard that is ready to use.
 
-## What makes this different
+## Why it is different
 
-Most "sales dashboard" projects assume the data is already clean and well-labeled. This one doesn't assume that.
+Most sales dashboard projects assume the data is already clean and well labelled. This one does not.
 
-- Upload basically any sales CSV or Excel file, even if the columns are named `cust_nm`, `Amt_Rs`, `ord_dt_ddmmyyyy`, or whatever the source system happened to call them.
-- A fuzzy column-mapping engine maps messy source columns to canonical fields automatically. It normalizes column names, scores them against 400+ keyword variants across 25 field types (order ID, customer ID, product, category, region, revenue, profit, rating, dates, payment method, loyalty status, return flags, and more), and falls back to regex pattern-matching — recognizing something like `INV-00234` as an order ID — when the column name itself gives no useful hint.
-- A 15-step cleaning pipeline handles type coercion, missing-value imputation, outlier capping, and business-rule enforcement, all guarded by a hard rule that the pipeline can never drop more than 15% of the original rows. If a rule would remove too many rows, it caps or corrects the data instead of deleting it.
-- On real test datasets, this hits 96.3% column-mapping accuracy and 94.3% row retention after cleaning.
+- You can upload almost any sales CSV or Excel file, even if the columns are called `cust_nm`, `Amt_Rs`, `ord_dt_ddmmyyyy` or whatever the source system decided to use.
+- A fuzzy column mapper matches the messy columns to standard fields on its own. It cleans up the column names and scores them against 400+ keyword variants across 25 field types (order ID, customer ID, product, category, region, revenue, profit, rating, dates, payment method, loyalty status, return flags and more). If the name gives no clue, it falls back to pattern matching, so a value like `INV-00234` is still recognised as an order ID.
+- A 15 step cleaning pipeline handles type fixes, missing values, outliers and business rules. It has one hard rule: it can never drop more than 15% of the original rows. If a rule would remove too many, the data gets capped or corrected instead of deleted.
+- On my test datasets it reached 96.3% column mapping accuracy and kept 94.3% of rows after cleaning.
 
-## Core features
+## Main features
 
-**Intelligent column mapping**
-Fuzzy, exact, substring, and word-part scoring across 25 canonical field types, with a confidence score reported per detected field and a clear list of anything left unmapped. Warnings are generated automatically when critical fields like revenue, date, order ID, or customer ID can't be found or derived.
+**Column mapping**
+Exact, fuzzy, substring and word part scoring across 25 standard field types. Each detected field gets a confidence score, and anything the mapper could not place is listed separately. If something important like revenue, date, order ID or customer ID is missing and cannot be derived, a warning is raised.
 
-**Multi-pass data cleaning (15 steps)**
-Multi-encoding, multi-delimiter file loading; column name normalization and duplicate-column collapsing; duplicate row removal; infinite-value and type-coercion fixes with auto string-to-numeric detection and robust date parsing; context-aware missing-value imputation that uses a different strategy per field rather than one blanket rule; quantity range filtering; gender normalization; rating capping; cancelled-order business rules; IQR-based outlier capping; domain bound checks; and automatic derived columns (`revenue`, `revenue_after_discount`, `age_group`, `revenue_tier`, plus a full date breakdown into year, month, quarter, week, day-of-week, and weekend flag).
+**Data cleaning (15 steps)**
+Files can be loaded with different encodings and delimiters. The pipeline fixes column names, merges duplicate columns, removes duplicate rows, handles infinite values, converts strings to numbers where it makes sense and parses dates in different formats. Missing values are filled with a different strategy for each field instead of one rule for everything. It also filters quantity ranges, normalises gender values, caps ratings, applies rules for cancelled orders, caps outliers using IQR and checks domain bounds. New columns are created automatically: `revenue`, `revenue_after_discount`, `age_group`, `revenue_tier` and a full date breakdown (year, month, quarter, week, day of week, weekend flag).
 
 **30+ analytics endpoints**
 
 | Category | What it covers |
 |---|---|
-| Core KPIs and summary | Revenue, orders, average order value, top-line health |
-| Revenue trends | Monthly and quarterly trend, growth rate, category-level growth |
-| Product performance | Top and lowest sellers, highest and lowest rated (with a minimum-order threshold to avoid noise) |
-| Customer segmentation | Gender distribution, age distribution, categories by gender |
-| Geography | Regional breakdown, region-by-category cross analysis |
-| Behavioral analytics | Repeat customer rate, sales velocity, sales-phase detection (z-score based spike/dip finder) |
-| Pricing and promotions | Discount-vs-baseline impact, revenue tiering, payment method mix |
-| Advanced / market basket | Frequently-bought-together product combos, monthly category distribution, post-purchase return analysis, anomaly detection |
+| Core KPIs and summary | Revenue, orders, average order value, overall health |
+| Revenue trends | Monthly and quarterly trend, growth rate, growth by category |
+| Product performance | Top and lowest sellers, highest and lowest rated (with a minimum order count to avoid noise) |
+| Customer segments | Gender split, age split, categories by gender |
+| Geography | Regional breakdown, region by category |
+| Behaviour | Repeat customer rate, sales velocity, sales phases (z score based spikes and dips) |
+| Pricing and promotions | Discount vs baseline, revenue tiers, payment method mix |
+| Advanced | Products bought together, monthly category split, post purchase returns, anomaly detection |
 
 **REST API (FastAPI)**
-A single `/upload` endpoint runs the whole pipeline in one call — cleaning, mapping, KPI computation, SQL persistence. Every upload gets a session ID, so you can come back later and hit `/preview`, `/schema`, `/mapping`, `/report`, or any `/insights/*` route without re-uploading. There are also download endpoints for the cleaned CSV and the full JSON cleaning report, and interactive API docs auto-generated at `/docs`.
+One `/upload` call runs everything: cleaning, mapping, KPIs and saving to the database. Each upload gets a session ID, so you can come back later and use `/preview`, `/schema`, `/mapping`, `/report` or any `/insights/*` route without uploading again. You can also download the cleaned CSV and the full JSON cleaning report, and the interactive docs are generated at `/docs`.
 
 **Storage**
-SQLAlchemy ORM with a swappable backend — SQLite for local dev, Postgres or SQL Server for production, switched with a single environment variable (`DATABASE_URL`) and no code changes. Every session's metadata (row counts, retention percentage, warnings) is tracked for auditability.
+SQLAlchemy with a swappable backend. SQLite for local work, Postgres or SQL Server for production, switched with a single environment variable (`DATABASE_URL`) and no code changes. Metadata for every session (row counts, retention percentage, warnings) is saved so there is a record of each upload.
 
 **Frontend**
-A single-page dashboard (`ui.html`) that consumes every API endpoint — upload, preview, schema, and all 30+ insight views — with no build step required.
+A single page dashboard (`ui.html`) that uses every API endpoint, from upload and preview to schema and all the insight views. It needs no build step.
 
 ## Tech stack
 
@@ -49,18 +49,18 @@ A single-page dashboard (`ui.html`) that consumes every API endpoint — upload,
 |---|---|
 | Backend API | Python, FastAPI |
 | Data processing | Pandas, NumPy |
-| Persistence | SQLAlchemy (SQLite / Postgres / SQL Server) |
+| Storage | SQLAlchemy (SQLite, Postgres, SQL Server) |
 | File support | openpyxl, xlrd |
-| Frontend | HTML/CSS/JS, single file, no framework |
-| Visualization layer | Power BI (companion analytics layer) |
+| Frontend | HTML, CSS and JS in a single file, no framework |
+| Visualisation | Power BI (as a companion analytics layer) |
 
 ## API overview
 
 ```
 POST   /upload                          run the full pipeline on a new file
 GET    /sessions                        list all past upload sessions
-GET    /preview                         paginated row preview
-GET    /schema                          per-column dtype, nulls, uniques, samples
+GET    /preview                         row preview
+GET    /schema                          dtype, nulls, uniques and samples per column
 GET    /mapping                         column mapping confidence report
 GET    /report                          full cleaning report for a session
 
@@ -95,7 +95,7 @@ GET    /download/cleaned                cleaned CSV
 GET    /download/report                 JSON cleaning report
 ```
 
-Full interactive docs are available at `/docs` once the app is running.
+The full interactive docs are at `/docs` once the app is running.
 
 ## Quickstart
 
@@ -104,23 +104,22 @@ pip install -r requirements.txt
 uvicorn main:app --reload
 ```
 
-Visit `http://localhost:8000` for the dashboard, or `http://localhost:8000/docs` for the API explorer.
+Open `http://localhost:8000` for the dashboard or `http://localhost:8000/docs` for the API explorer.
 
-For live deployment steps, see [DEPLOYMENT.md](./DEPLOYMENT.md).
+For deployment steps, see [DEPLOYMENT.md](./DEPLOYMENT.md).
 
 ## Project structure
 
 ```
-.
-├── main.py             FastAPI app, routes, session management
-├── cleaner.py           15-step multi-pass cleaning pipeline
-├── column_mapper.py     Fuzzy column detection and canonical mapping
-├── insights.py          30+ analytics functions
-├── db.py                SQLAlchemy models and session persistence
-├── static/ui.html        Frontend dashboard
-└── requirements.txt
+main.py              FastAPI app, routes, session handling
+cleaner.py           15 step cleaning pipeline
+column_mapper.py     column detection and mapping to standard fields
+insights.py          30+ analytics functions
+db.py                SQLAlchemy models and session saving
+static/ui.html       frontend dashboard
+requirements.txt
 ```
 
 ## Background
 
-Built as a final-year B.Tech (Computer Science and Engineering) capstone project. The core problem it solves: real sales data in the wild never comes pre-labeled the way tutorials assume. This system is built to handle that reality — arbitrary column names, inconsistent encodings, dirty values — without a human manually mapping fields before every analysis run.
+This was my final year B.Tech (Computer Science and Engineering) capstone project. The problem it tackles is that real sales data almost never comes labelled the way tutorials expect. The system is built to cope with that: random column names, mixed encodings and dirty values, without someone mapping fields by hand before every analysis.

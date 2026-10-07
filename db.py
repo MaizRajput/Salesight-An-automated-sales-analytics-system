@@ -6,9 +6,9 @@ import pandas as pd
 from sqlalchemy import create_engine, inspect, Column, String, Float, Integer, DateTime, Text
 from sqlalchemy.orm import declarative_base, sessionmaker
 
-# Change this env variable to switch databases with zero code changes:
-#   PostgreSQL:   DATABASE_URL=postgresql://user:pass@localhost/salesdb
-#   SQL Server:   DATABASE_URL=mssql+pyodbc://user:pass@server/db?driver=ODBC+Driver+17+for+SQL+Server
+# just change this env variable to switch databases, no code changes needed
+#   postgres:   DATABASE_URL=postgresql://user:pass@localhost/salesdb
+#   sql server: DATABASE_URL=mssql+pyodbc://user:pass@server/db?driver=ODBC+Driver+17+for+SQL+Server
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./sales_analytics.db")
 
 _log = logging.getLogger(__name__)
@@ -35,17 +35,14 @@ class UploadSession(Base):
 
 
 def init_db() -> None:
-    """Create all tables. Called once on FastAPI startup."""
+    # makes the tables, runs once when the app starts
     Base.metadata.create_all(bind=engine)
     _log.info("DB ready: %s", DATABASE_URL)
 
 
 def save_cleaned_df(df: pd.DataFrame, session_id: str, filename: str, report: dict) -> str:
-    """
-    Save the cleaned DataFrame to SQL as table  sales_{session_id}.
-    Also saves metadata to upload_sessions table.
-    Returns the table name.
-    """
+    # saves the cleaned data as a table called sales_<session_id>
+    # and also logs a row in upload_sessions. returns the table name
     table_name = f"sales_{session_id}"
     df.to_sql(table_name, con=engine, if_exists="replace", index=False, chunksize=5000)
     _log.info("Saved %d rows to SQL table '%s'", len(df), table_name)
@@ -76,7 +73,7 @@ def save_cleaned_df(df: pd.DataFrame, session_id: str, filename: str, report: di
 
 
 def load_session_df(session_id: str) -> pd.DataFrame | None:
-    """Load cleaned data from SQL. Returns None if session doesn't exist."""
+    # load a session back from sql, None if it is not there
     table_name = f"sales_{session_id}"
     if table_name not in inspect(engine).get_table_names():
         return None
@@ -84,7 +81,7 @@ def load_session_df(session_id: str) -> pd.DataFrame | None:
 
 
 def list_sessions() -> list[dict]:
-    """Return all upload sessions, newest first."""
+    # all past uploads, latest first
     db = SessionLocal()
     try:
         rows = db.query(UploadSession).order_by(UploadSession.uploaded_at.desc()).all()
@@ -105,7 +102,7 @@ def list_sessions() -> list[dict]:
 
 
 def get_session_meta(session_id: str) -> dict | None:
-    """Return metadata for one session, or None if not found."""
+    # info about one session, None if missing
     db = SessionLocal()
     try:
         r = db.get(UploadSession, session_id)
